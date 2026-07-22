@@ -1,0 +1,76 @@
+Algorithm: Generational Garbage Collection
+
+Key Insight: Young → Old promotion reduces collection frequency
+
+REGIONS:
+├─ Young Gen: Eden + Survivor0 + Survivor1
+├─ Old Gen: Long-lived objects
+└─ Age = generation count survived
+
+MINOR GC (Collect Young Only):
+────────────────────────────
+minorGC()
+  // Collect only young generation
+
+  live_objects = {}
+
+  // 1. Mark phase (roots + remembered set)
+  for each root in STACK_ROOTS:
+    mark(root)
+  for each old→young ref in REMEMBERED_SET:
+    mark(young_object)
+
+  // 2. Copy survivors to next survivor space
+  for each live object in young_gen:
+    if obj.age > PROMOTION_THRESHOLD:
+      copy_to_old_gen(obj)
+      obj.age = old_gen_age
+    else:
+      copy_to_survivor(obj)
+      obj.age++
+
+  // 3. Clear Eden and swap survivor spaces
+  clear_eden()
+  swap_survivor_spaces()
+
+TIME: O(young_gen_size) - much faster!
+
+
+MAJOR GC (Collect All):
+──────────────────────
+majorGC()
+  // Full heap collection (fallback)
+
+  // 1. Mark from all roots
+  for each root in ALL_ROOTS:
+    mark(root)
+
+  // 2. Sweep both young and old
+  sweep_young_gen()
+  sweep_old_gen()
+
+  // 3. Compact both generations
+  compact_young_gen()
+  compact_old_gen()
+
+TIME: O(heap_size) - slow!
+
+
+COLLECTION SCHEDULING:
+──────────────────────
+monitor heap usage:
+
+  if eden_full:
+    minorGC()  // ~10-100ms pause
+
+  if old_gen_usage > threshold:
+    majorGC()  // ~1-10 seconds pause (EXPENSIVE!)
+
+  if metaspace_full:
+    collect_metaspace()  // Unload dead classes
+
+STATISTICS TYPICAL APPLICATION:
+├─ Minor GC: every 1-2 seconds, 50ms pause
+├─ Major GC: once per day, 5 second pause
+├─ Frequency ratio: 1000:1 (1000 minors per 1 major)
+└─ 99% of garbage collected in minor GC
