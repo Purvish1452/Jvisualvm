@@ -1,0 +1,90 @@
+Algorithm: Mark-Sweep-Compact GC
+
+INPUT: Heap with live and dead objects
+OUTPUT: Compacted heap with only live objects
+
+PHASE 1: MARK
+─────────────
+mark(obj)
+  if obj.mark_bit == 0:
+    obj.mark_bit = 1
+    for each field in obj:
+      if field is reference:
+        mark(field_value)
+
+Execute:
+  for each root in GC_ROOTS:
+    mark(root)
+
+Result: All reachable objects have mark_bit = 1
+
+TIME: O(H + R) where H = live objects, R = references
+
+
+PHASE 2: SWEEP
+──────────────
+sweep()
+  for addr from heap_start to heap_end:
+    obj = memory[addr]
+    if obj.mark_bit == 0:
+      free(obj)
+    else:
+      obj.mark_bit = 0  // reset for next cycle
+
+Result: All unreachable objects freed, all mark bits cleared
+
+TIME: O(heap_size) must scan entire heap
+
+
+PHASE 3: COMPACT
+────────────────
+compact()
+  write_pos = heap_start
+  for addr from heap_start to heap_end:
+    obj = memory[addr]
+    if obj is live (has content):
+      new_addr = write_pos
+
+      // Update all references to obj
+      for each reference → obj:
+        reference = new_addr
+
+      // Move object
+      copy(obj, new_addr)
+      write_pos += obj.size
+
+  heap_end = write_pos  // heap is now smaller
+
+Result: All live objects adjacent, no fragmentation
+
+TIME: O(live_objects + references)
+
+TOTAL COMPLEXITY: O(heap_size) due to sweep phase
+
+
+EXAMPLE EXECUTION:
+
+Before Mark:
+┌─────────────────────────────────────────┐
+│ [A] [B] [C] [D] [E] [F] [G]             │
+└─────────────────────────────────────────┘
+Reachable: A, C, E, G
+Garbage: B, D, F
+
+After Mark:
+┌─────────────────────────────────────────┐
+│ [✓A] [B] [✓C] [D] [✓E] [F] [✓G]        │
+└─────────────────────────────────────────┘
+Mark bits set for A, C, E, G
+
+After Sweep (gaps created):
+┌─────────────────────────────────────────┐
+│ [✓A] [X] [✓C] [X] [✓E] [X] [✓G]       │
+└─────────────────────────────────────────┘
+Dead objects freed, gaps left
+
+After Compact (defragmented):
+┌─────────────────────────────────────────┐
+│ [A] [C] [E] [G] [free space...]         │
+└─────────────────────────────────────────┘
+Objects move together, no fragmentation
